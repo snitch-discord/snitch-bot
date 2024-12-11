@@ -12,7 +12,7 @@ import (
 )
 
 func WithTimeout(next SlashCommandHandlerFunc, duration time.Duration) SlashCommandHandlerFunc {
-	return func (session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
 		timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 		defer cancel()
 		next(session, interaction, timeoutCtx)
@@ -42,7 +42,7 @@ func ResponseTime(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 		start := time.Now()
 		next(session, interaction, ctx)
 		elapsed := time.Since(start)
-		
+
 		slogger.InfoContext(ctx, "Command Time", "Time Elapsed", elapsed)
 	}
 }
@@ -56,7 +56,7 @@ func Recovery(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 					slogger = slog.Default()
 				}
 				stack := debug.Stack()
-				
+
 				slogger.ErrorContext(ctx, "Recovery", "Panic", err, "Stack", stack)
 			}
 		}()

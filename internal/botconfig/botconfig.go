@@ -24,8 +24,8 @@ func BotConfigFromEnv() (BotConfig, error) {
 
 	cfg := BotConfig{
 		DiscordToken: get("SNITCH_DISCORD_TOKEN"),
-		BackendHost: get("SNITCH_BACKEND_HOST"),
-		BackendPort: get("SNITCH_BACKEND_PORT"),
+		BackendHost:  get("SNITCH_BACKEND_HOST"),
+		BackendPort:  get("SNITCH_BACKEND_PORT"),
 	}
 
 	if len(missing) > 0 {

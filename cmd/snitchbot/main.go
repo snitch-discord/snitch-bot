@@ -21,14 +21,15 @@ func main() {
 	}
 
 	// initialize map of command name to command handler
-	commandHandlers := map[string] slashcommands.SlashCommandHandlerFunc {
+	commandHandlers := map[string]slashcommands.SlashCommandHandlerFunc{
 		"register": slashcommands.CreateRegisterCommandHandler(config),
+		"report":   slashcommands.CreateReportCommandHandler(config),
 	}
 
 	for _, command := range slashcommands.Commands {
 		_, handlerPresent := commandHandlers[command.Name]
 
-		if (!handlerPresent) {
+		if !handlerPresent {
 			log.Fatalf("Missing Handler for %s", command.Name)
 		}
 	}
@@ -44,7 +45,7 @@ func main() {
 	})
 	// setup our listeners for interaction events (a user using a slash command)
 
-  handler := func(session *discordgo.Session, interaction *discordgo.InteractionCreate, context context.Context) {
+	handler := func(session *discordgo.Session, interaction *discordgo.InteractionCreate, context context.Context) {
 		if handler, ok := commandHandlers[interaction.ApplicationCommandData().Name]; ok {
 			handler(session, interaction, context)
 		}
@@ -52,9 +53,9 @@ func main() {
 	handler = slashcommands.ResponseTime(handler)
 	handler = slashcommands.Recovery(handler)
 	handler = slashcommands.Log(handler)
-	handler = slashcommands.WithTimeout(handler, time.Second * 10)
+	handler = slashcommands.WithTimeout(handler, time.Second*10)
 	mainSession.AddHandler(slashcommands.SlashCommandHandlerFunc(handler).Adapt())
-	
+
 	if err = mainSession.Open(); err != nil {
 		log.Fatal(err)
 	}
@@ -72,11 +73,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	stopChannel := make(chan os.Signal, 1)
 	signal.Notify(stopChannel, os.Interrupt)
 	<-stopChannel
-	
+
 	log.Println("Shutting down gracefully...")
 
 	// cleanup commands
