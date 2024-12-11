@@ -5,11 +5,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"snitch/snitchbot/internal/botconfig"
-	"snitch/snitchbot/internal/slashcommands"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"snitch/snitchbot/internal/botconfig"
+	"snitch/snitchbot/internal/slashcommands"
 )
 
 func main() {

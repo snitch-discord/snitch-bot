@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"runtime/debug"
-	"snitch/snitchbot/pkg/ctxutil"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"snitch/snitchbot/pkg/ctxutil"
 )
 
 func WithTimeout(next SlashCommandHandlerFunc, duration time.Duration) SlashCommandHandlerFunc {
@@ -21,7 +21,7 @@ func WithTimeout(next SlashCommandHandlerFunc, duration time.Duration) SlashComm
 
 func Log(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
-		var slogger = slog.New(slog.NewTextHandler(os.Stdout, nil)).With(
+		slogger := slog.New(slog.NewTextHandler(os.Stdout, nil)).With(
 			slog.String("User ID", interaction.Member.User.ID),
 			slog.String("Guild ID", interaction.GuildID),
 			slog.String("Command", interaction.ApplicationCommandData().Name),
