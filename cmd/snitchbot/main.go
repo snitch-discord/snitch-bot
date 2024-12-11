@@ -1,126 +1,36 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"snitch/snitchbot/internal/botconfig"
+	"snitch/snitchbot/internal/slashcommands"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-type registrationRequest struct {
-	ServerID string `json:"serverId"` // we need to tell go that our number is encoded as a string, hence ',string'
-	UserID   string `json:"userId"`   // we need to tell go that our number is encoded as a string, hence ',string'
-}
-
-type registrationResponse struct {
-	ServerID string    `json:"serverId"` // we need to tell go that our number is encoded as a string, hence ',string'
-	GroupID  string `json:"groupId"`
-}
-
-var commands = []*discordgo.ApplicationCommand{
-	{
-		Name: "register",
-		Description: "Registers server",
-	},
-	// {
-	// 	Name: "report-command",
-	// 	Description: "Reports a user",
-	// 	Options: []*discordgo.ApplicationCommandOption{
-	// 		{
-	// 			Type: discordgo.ApplicationCommandOptionUser,
-	// 			Name: "reported-user-option",
-	// 			Description: "The user to report",
-	// 			Required: true,
-	// 		},
-	// 	},
-	// },
-}
-
-var httpClient = &http.Client {
-	Timeout: 5 * time.Second,
-}
-
-func createRegisterHandler(httpClient *http.Client, botconfig botconfig.BotConfig) func(*discordgo.Session, *discordgo.InteractionCreate) {
-	backendURL, err := botconfig.BackendURL()
-	if err != nil {
-		log.Fatal(backendURL)
-	}
-	
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
-		context, cancel := context.WithTimeout(context.Background(), time.Second * 5)
-		defer cancel()
-
-		serverId := interaction.GuildID
-		userId := interaction.Member.User.ID
-		
-		requestStruct := &registrationRequest{ ServerID: serverId, UserID: userId }
-		
-		requestBody, err := json.Marshal(requestStruct)
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		
-		requestURL := backendURL.JoinPath("databases")
-		request, err := http.NewRequestWithContext(context, "POST", requestURL.String(), bytes.NewBuffer(requestBody))
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		
-		response, err := httpClient.Do(request)
-		if (err != nil) {
-			log.Print(err)
-			return
-		}
-
-		if response.StatusCode >= 300 || response.StatusCode < 200 {
-			log.Printf("Unexpected Response; Status: %d", response.StatusCode)
-			return
-		}
-		
-		body, err := io.ReadAll(response.Body)
-		defer response.Body.Close()
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		
-		var registrationResponse registrationResponse
-		if err := json.Unmarshal(body, &registrationResponse); err != nil {
-			log.Print(err)
-			return
-		}
-		
-		if err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Created group %s for this server.", registrationResponse.GroupID),
-			},
-		}); err != nil {
-			log.Print(err)
-			return
-		}
-	}
-}
-
 func main() {
+	testingGuildID := "1315524176936964117"
+
 	config, err := botconfig.BotConfigFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	commandHandlers := map[string] func(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
-		"register": createRegisterHandler(httpClient, config),
+	// initialize map of command name to command handler
+	commandHandlers := map[string] slashcommands.SlashCommandHandlerFunc {
+		"register": slashcommands.CreateRegisterCommandHandler(config),
+	}
+
+	for _, command := range slashcommands.Commands {
+		_, handlerPresent := commandHandlers[command.Name]
+
+		if (!handlerPresent) {
+			log.Fatalf("Missing Handler for %s", command.Name)
+		}
 	}
 
 	mainSession, err := discordgo.New("Bot " + config.DiscordToken)
@@ -132,21 +42,29 @@ func main() {
 	mainSession.AddHandler(func(session *discordgo.Session, interaction *discordgo.Ready) {
 		log.Printf("Logged in as: %s#%s", session.State.User.Username, session.State.User.Discriminator)
 	})
-	mainSession.AddHandler(func(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+	// setup our listeners for interaction events (a user using a slash command)
+
+  handler := func(session *discordgo.Session, interaction *discordgo.InteractionCreate, context context.Context) {
 		if handler, ok := commandHandlers[interaction.ApplicationCommandData().Name]; ok {
-			handler(session, interaction)
+			handler(session, interaction, context)
 		}
-	})
+	}
+	handler = slashcommands.ResponseTime(handler)
+	handler = slashcommands.Recovery(handler)
+	handler = slashcommands.Log(handler)
+	handler = slashcommands.WithTimeout(handler, time.Second * 10)
+	mainSession.AddHandler(slashcommands.SlashCommandHandlerFunc(handler).Adapt())
 	
 	if err = mainSession.Open(); err != nil {
 		log.Fatal(err)
 	}
 
-	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
-	for index, applicationCommand := range commands {
-		createdCommand, err := mainSession.ApplicationCommandCreate(mainSession.State.User.ID, "", applicationCommand)
+	// tells discord about the commands we support
+	registeredCommands := make([]*discordgo.ApplicationCommand, len(slashcommands.Commands))
+	for index, applicationCommand := range slashcommands.Commands {
+		createdCommand, err := mainSession.ApplicationCommandCreate(mainSession.State.User.ID, testingGuildID, applicationCommand)
 		if err != nil {
-			log.Panicf("Cannot create '%v' command: %v", applicationCommand.Name, err)
+			log.Fatalf("Cannot register '%v' command: %v", applicationCommand.Name, err)
 		}
 		registeredCommands[index] = createdCommand
 	}
@@ -160,9 +78,10 @@ func main() {
 	<-stopChannel
 	
 	log.Println("Shutting down gracefully...")
-	
+
+	// cleanup commands
 	for _, registeredCommand := range registeredCommands {
-		if err = mainSession.ApplicationCommandDelete(mainSession.State.User.ID, "", registeredCommand.ID); err != nil {
+		if err = mainSession.ApplicationCommandDelete(mainSession.State.User.ID, testingGuildID, registeredCommand.ID); err != nil {
 			log.Panicf("Cannot delete '%v' command: '%v'", registeredCommand.Name, err)
 		}
 	}
