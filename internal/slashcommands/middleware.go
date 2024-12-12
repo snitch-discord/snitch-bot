@@ -7,20 +7,21 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"snitch/snitchbot/pkg/ctxutil"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 func WithTimeout(next SlashCommandHandlerFunc, duration time.Duration) SlashCommandHandlerFunc {
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 		defer cancel()
-		next(session, interaction, timeoutCtx)
+		next(timeoutCtx, session, interaction)
 	}
 }
 
 func Log(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		slogger := slog.New(slog.NewTextHandler(os.Stdout, nil)).With(
 			slog.String("User ID", interaction.Member.User.ID),
 			slog.String("Guild ID", interaction.GuildID),
@@ -28,19 +29,19 @@ func Log(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 		)
 
 		ctx = ctxutil.WithValue(ctx, slogger)
-		next(session, interaction, ctx)
+		next(ctx, session, interaction)
 	}
 }
 
 func ResponseTime(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 		if !ok {
 			slogger = slog.Default()
 		}
 
 		start := time.Now()
-		next(session, interaction, ctx)
+		next(ctx, session, interaction)
 		elapsed := time.Since(start)
 
 		slogger.InfoContext(ctx, "Command Time", "Time Elapsed", elapsed)
@@ -48,7 +49,7 @@ func ResponseTime(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 }
 
 func Recovery(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		defer func() {
 			if err := recover(); err != nil {
 				slogger, ok := ctxutil.Value[*slog.Logger](ctx)
@@ -60,6 +61,6 @@ func Recovery(next SlashCommandHandlerFunc) SlashCommandHandlerFunc {
 				slogger.ErrorContext(ctx, "Recovery", "Panic", err, "Stack", stack)
 			}
 		}()
-		next(session, interaction, ctx)
+		next(ctx, session, interaction)
 	}
 }

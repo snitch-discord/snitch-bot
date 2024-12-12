@@ -26,15 +26,15 @@ type RegistrationResponse struct {
 	GroupID  string `json:"groupId"`
 }
 
-type SlashCommandHandlerFunc func(*discordgo.Session, *discordgo.InteractionCreate, context.Context)
+type SlashCommandHandlerFunc func(context.Context, *discordgo.Session, *discordgo.InteractionCreate)
 
 func (slashCommandFuncContext SlashCommandHandlerFunc) Adapt() func(*discordgo.Session, *discordgo.InteractionCreate) {
 	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
-		slashCommandFuncContext(session, interaction, context.Background())
+		slashCommandFuncContext(context.Background(), session, interaction)
 	}
 }
 
-func handleNewReport(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+func handleNewReport(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 	if !ok {
 		slogger = slog.Default()
@@ -49,6 +49,7 @@ func handleNewReport(session *discordgo.Session, interaction *discordgo.Interact
 	reportedUserOption, ok := optionMap["reported-user"]
 	if !ok {
 		slogger.ErrorContext(ctx, "Failed to get reported user option")
+
 		return
 	}
 	reportedUser := reportedUserOption.UserValue(session)
@@ -71,7 +72,7 @@ func handleNewReport(session *discordgo.Session, interaction *discordgo.Interact
 	}
 }
 
-func handleListReports(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+func handleListReports(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 	if !ok {
 		slogger = slog.Default()
@@ -107,7 +108,7 @@ func handleListReports(session *discordgo.Session, interaction *discordgo.Intera
 	}
 }
 
-func handleDeleteReport(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+func handleDeleteReport(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 	if !ok {
 		slogger = slog.Default()
@@ -119,13 +120,13 @@ func handleDeleteReport(session *discordgo.Session, interaction *discordgo.Inter
 		optionMap[opt.Name] = opt
 	}
 
-	reportIdOption, ok := optionMap["report-id"]
+	reportIDOption, ok := optionMap["report-id"]
 	if !ok {
 		slogger.ErrorContext(ctx, "Failed to get reported user option")
 		return
 	}
 
-	responseContent := fmt.Sprintf("Delete report %s", reportIdOption.StringValue())
+	responseContent := fmt.Sprintf("Delete report %s", reportIDOption.StringValue())
 
 	if err := session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -143,7 +144,7 @@ func CreateReportCommandHandler(botconfig botconfig.BotConfig) SlashCommandHandl
 		log.Fatal(backendURL)
 	}
 
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 		if !ok {
 			slogger = slog.Default()
@@ -153,11 +154,11 @@ func CreateReportCommandHandler(botconfig botconfig.BotConfig) SlashCommandHandl
 
 		switch options[0].Name {
 		case "new":
-			handleNewReport(session, interaction, ctx)
+			handleNewReport(ctx, session, interaction)
 		case "list":
-			handleListReports(session, interaction, ctx)
+			handleListReports(ctx, session, interaction)
 		case "delete":
-			handleDeleteReport(session, interaction, ctx)
+			handleDeleteReport(ctx, session, interaction)
 		default:
 			slogger.ErrorContext(ctx, "Invalid subcommand", "Subcommand Name", options[0].Name)
 		}
@@ -170,16 +171,16 @@ func CreateRegisterCommandHandler(botconfig botconfig.BotConfig) SlashCommandHan
 		log.Fatal(backendURL)
 	}
 
-	return func(session *discordgo.Session, interaction *discordgo.InteractionCreate, ctx context.Context) {
+	return func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		slogger, ok := ctxutil.Value[*slog.Logger](ctx)
 		if !ok {
 			slogger = slog.Default()
 		}
 
-		serverId := interaction.GuildID
-		userId := interaction.Member.User.ID
+		serverID := interaction.GuildID
+		userID := interaction.Member.User.ID
 
-		requestStruct := &RegistrationRequest{ServerID: serverId, UserID: userId}
+		requestStruct := &RegistrationRequest{ServerID: serverID, UserID: userID}
 
 		requestBody, err := json.Marshal(requestStruct)
 		if err != nil {
@@ -188,7 +189,7 @@ func CreateRegisterCommandHandler(botconfig botconfig.BotConfig) SlashCommandHan
 		}
 
 		requestURL := backendURL.JoinPath("databases")
-		request, err := http.NewRequestWithContext(ctx, "POST", requestURL.String(), bytes.NewBuffer(requestBody))
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), bytes.NewBuffer(requestBody))
 		if err != nil {
 			slogger.ErrorContext(ctx, "Backend Request Creation", "Error", err)
 			return

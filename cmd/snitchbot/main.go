@@ -7,17 +7,18 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"snitch/snitchbot/internal/botconfig"
 	"snitch/snitchbot/internal/slashcommands"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 func main() {
 	testingGuildID := "1315524176936964117"
 
-	config, err := botconfig.BotConfigFromEnv()
+	config, err := botconfig.FromEnv()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// initialize map of command name to command handler
@@ -26,7 +27,9 @@ func main() {
 		"report":   slashcommands.CreateReportCommandHandler(config),
 	}
 
-	for _, command := range slashcommands.Commands {
+	commands := slashcommands.InitializeCommands()
+
+	for _, command := range commands {
 		_, handlerPresent := commandHandlers[command.Name]
 
 		if !handlerPresent {
@@ -36,18 +39,18 @@ func main() {
 
 	mainSession, err := discordgo.New("Bot " + config.DiscordToken)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	defer mainSession.Close()
 
-	mainSession.AddHandler(func(session *discordgo.Session, interaction *discordgo.Ready) {
+	mainSession.AddHandler(func(session *discordgo.Session, _ *discordgo.Ready) {
 		log.Printf("Logged in as: %s#%s", session.State.User.Username, session.State.User.Discriminator)
 	})
 	// setup our listeners for interaction events (a user using a slash command)
 
-	handler := func(session *discordgo.Session, interaction *discordgo.InteractionCreate, context context.Context) {
+	handler := func(ctx context.Context, session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 		if handler, ok := commandHandlers[interaction.ApplicationCommandData().Name]; ok {
-			handler(session, interaction, context)
+			handler(ctx, session, interaction)
 		}
 	}
 	handler = slashcommands.ResponseTime(handler)
@@ -57,21 +60,23 @@ func main() {
 	mainSession.AddHandler(slashcommands.SlashCommandHandlerFunc(handler).Adapt())
 
 	if err = mainSession.Open(); err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	// tells discord about the commands we support
-	registeredCommands := make([]*discordgo.ApplicationCommand, len(slashcommands.Commands))
-	for index, applicationCommand := range slashcommands.Commands {
+	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
+
+	for index, applicationCommand := range commands {
 		createdCommand, err := mainSession.ApplicationCommandCreate(mainSession.State.User.ID, testingGuildID, applicationCommand)
 		if err != nil {
-			log.Fatalf("Cannot register '%v' command: %v", applicationCommand.Name, err)
+			log.Panicf("Cannot register '%v' command: %v", applicationCommand.Name, err)
 		}
+
 		registeredCommands[index] = createdCommand
 	}
 
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	stopChannel := make(chan os.Signal, 1)

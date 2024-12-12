@@ -2,6 +2,7 @@ package botconfig
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -11,7 +12,7 @@ type BotConfig struct {
 	DiscordToken, BackendHost, BackendPort string
 }
 
-func BotConfigFromEnv() (BotConfig, error) {
+func FromEnv() (BotConfig, error) {
 	var missing []string
 
 	get := func(key string) string {
@@ -19,6 +20,7 @@ func BotConfigFromEnv() (BotConfig, error) {
 		if val == "" {
 			missing = append(missing, key)
 		}
+
 		return val
 	}
 
@@ -37,5 +39,5 @@ func BotConfigFromEnv() (BotConfig, error) {
 }
 
 func (botConfig BotConfig) BackendURL() (*url.URL, error) {
-	return url.Parse(fmt.Sprintf("http://%s:%s", botConfig.BackendHost, botConfig.BackendPort))
+	return url.Parse("http://" + net.JoinHostPort(botConfig.BackendHost, botConfig.BackendPort))
 }
