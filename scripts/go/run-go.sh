@@ -11,7 +11,6 @@ docker container rm ${GO_IMAGE_NAME}
 docker build -t ${GO_IMAGE_NAME} -f "${BASE_DIR}"/Containerfile .
 
 docker run -d --name ${GO_IMAGE_NAME} \
-  --network snitch-network \
   -e SNITCH_DISCORD_TOKEN="${SNITCH_DISCORD_TOKEN}" \
   -e SNITCH_BACKEND_HOST=snitchbe \
   -e SNITCH_BACKEND_PORT=4200 \

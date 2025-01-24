@@ -1,4 +1,4 @@
-package slashcommands
+package slashcommand
 
 import "github.com/bwmarrin/discordgo"
 
@@ -7,6 +7,41 @@ func InitializeCommands() []*discordgo.ApplicationCommand {
 		{
 			Name:        "register",
 			Description: "Registers server",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:        "group",
+					Description: "Group related functionality",
+					Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "create",
+							Description: "Creates a new group",
+							Type:        discordgo.ApplicationCommandOptionSubCommand,
+							Options: []*discordgo.ApplicationCommandOption{
+								{
+									Name:        "group-name",
+									Type:        discordgo.ApplicationCommandOptionString,
+									Description: "Group name",
+									Required:    true,
+								},
+							},
+						},
+						{
+							Name:        "join",
+							Description: "Joins a group",
+							Type:        discordgo.ApplicationCommandOptionSubCommand,
+							Options: []*discordgo.ApplicationCommandOption{
+								{
+									Name:        "join-code",
+									Type:        discordgo.ApplicationCommandOptionString,
+									Description: "Group join code",
+									Required:    true,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			Name:        "report",

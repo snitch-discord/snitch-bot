@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"snitch/snitchbot/internal/botconfig"
-	"snitch/snitchbot/internal/slashcommands"
+	"snitch/snitchbot/internal/slashcommand"
+	"snitch/snitchbot/internal/slashcommand/handler"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -22,12 +23,12 @@ func main() {
 	}
 
 	// initialize map of command name to command handler
-	commandHandlers := map[string]slashcommands.SlashCommandHandlerFunc{
-		"register": slashcommands.CreateRegisterCommandHandler(config),
-		"report":   slashcommands.CreateReportCommandHandler(config),
+	commandHandlers := map[string]slashcommand.SlashCommandHandlerFunc{
+		"register": handler.CreateRegisterCommandHandler(config),
+		"report":   handler.CreateReportCommandHandler(config),
 	}
 
-	commands := slashcommands.InitializeCommands()
+	commands := slashcommand.InitializeCommands()
 
 	for _, command := range commands {
 		_, handlerPresent := commandHandlers[command.Name]
@@ -53,11 +54,11 @@ func main() {
 			handler(ctx, session, interaction)
 		}
 	}
-	handler = slashcommands.ResponseTime(handler)
-	handler = slashcommands.Recovery(handler)
-	handler = slashcommands.Log(handler)
-	handler = slashcommands.WithTimeout(handler, time.Second*10)
-	mainSession.AddHandler(slashcommands.SlashCommandHandlerFunc(handler).Adapt())
+	handler = slashcommand.ResponseTime(handler)
+	handler = slashcommand.Recovery(handler)
+	handler = slashcommand.Log(handler)
+	handler = slashcommand.WithTimeout(handler, time.Second*10)
+	mainSession.AddHandler(slashcommand.SlashCommandHandlerFunc(handler).Adapt())
 
 	if err = mainSession.Open(); err != nil {
 		log.Panic(err)

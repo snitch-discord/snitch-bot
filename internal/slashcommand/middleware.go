@@ -1,4 +1,4 @@
-package slashcommands
+package slashcommand
 
 import (
 	"context"
